@@ -1,12 +1,13 @@
 package com.esand.crip.service;
 
-import com.esand.crip.entity.Crip;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import javax.crypto.Cipher;
 
 @Service
@@ -26,13 +27,24 @@ public class CripService {
         }
     }
 
-    public String processar(Crip crip) {
-        if ("criptografia".equalsIgnoreCase(crip.getOperacao())) {
-            return criptografar(crip.getSenha(), crip.getChave());
-        } else if ("descriptografia".equalsIgnoreCase(crip.getOperacao())) {
-            return descriptografar(crip.getSenha(), crip.getChave());
+    public Object processar(Object senha, String chave, String operacao) {
+        if (senha instanceof List<?>) {
+            List<?> lista = (List<?>) senha;
+
+            if (lista.isEmpty() || lista.stream().allMatch(item -> item instanceof String)) {
+                return processarLista(chave, operacao, (List<String>) lista);
+            } else {
+                return "A lista deve conter apenas Strings.";
+            }
+        } else if (senha instanceof String) {
+            if ("criptografia".equalsIgnoreCase(operacao)) {
+                return criptografar((String) senha, chave);
+            } else if ("descriptografia".equalsIgnoreCase(operacao)) {
+                return descriptografar((String) senha, chave);
+            }
         }
-        return "Operação inválida. Use 'criptografar' ou 'descriptografar'.";
+
+        return "Operação inválida. Use 'criptografia' ou 'descriptografia'.";
     }
 
     public String criptografar(String senha, String chave) {
@@ -44,7 +56,7 @@ public class CripService {
             cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 
             byte[] encryptedBytes = cipher.doFinal(senha.getBytes());
-            return Base64.getEncoder().encodeToString(encryptedBytes);
+            return senha + " -> " + Base64.getEncoder().encodeToString(encryptedBytes);
         } catch (Exception e) {
             throw new RuntimeException("Erro ao criptografar a senha", e);
         }
@@ -59,10 +71,21 @@ public class CripService {
             cipher.init(Cipher.DECRYPT_MODE, secretKey);
 
             byte[] decodedSenha = Base64.getDecoder().decode(senha);
-            byte[] decryptedBytes = cipher.doFinal(decodedSenha);
-            return new String(decryptedBytes); // Converte para String
+            return senha + " -> " + new String(cipher.doFinal(decodedSenha));
         } catch (Exception e) {
             throw new RuntimeException("Erro ao descriptografar a senha", e);
         }
+    }
+
+    public List<String> processarLista(String chave, String operacao, List<String> senhas) {
+        List<String> resultado = new ArrayList<>();
+
+        if ("criptografia".equalsIgnoreCase(operacao)) {
+            resultado = senhas.stream().map(x -> criptografar(x, chave)).toList();
+        } else if ("descriptografia".equalsIgnoreCase(operacao)) {
+            resultado = senhas.stream().map(x -> descriptografar(x, chave)).toList();
+        }
+
+        return resultado;
     }
 }
